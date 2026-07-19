@@ -1,0 +1,21 @@
+{
+  "name": "Palazzo Mooca",
+  "short_name": "Palazzo",
+  "description": "Peça seu delivery online - Massas, saladas, pratos especiais e mais.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#dc2626",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "96x96 192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["food", "restaurants"],
+  "lang": "pt-BR",
+  "scope": "/"
+}

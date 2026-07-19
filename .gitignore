@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+uploads/*
+!uploads/.gitkeep
+nul
+backend/nul
+package-lock.json
+# Arquivos sensíveis
+chavesAsaas.md
