@@ -120,7 +120,7 @@ app.use(errorHandler);
 // ============================
 initRealtime(server);
 
-server.listen(config.port, () => {
+server.listen(config.port, '0.0.0.0', () => {
   console.log(`\n🚀 SaborExpress Backend v2`);
   console.log(`📡 Server: http://localhost:${config.port}`);
   console.log(`🏪 Restaurante ID: ${config.restaurantId}`);

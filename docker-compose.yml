@@ -16,7 +16,7 @@ services:
       - DB_NAME=${DB_NAME:-delivery}
       - DB_USER=${DB_USER:-default}
       - DB_PASS=${DB_PASS:-default}
-      - JWT_SECRET=${JWT_SECRET}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - RESTAURANT_ID=${RESTAURANT_ID:-1}
       - CORS_ORIGIN=https://cliente.saborexpress.com,https://admin.saborexpress.com,https://entregador.saborexpress.com
     volumes:
