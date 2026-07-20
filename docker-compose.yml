@@ -5,7 +5,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: saborexpress-backend
     restart: unless-stopped
     ports:
       - "8090:3001"
@@ -34,7 +33,6 @@ services:
     build:
       context: ./cliente
       dockerfile: Dockerfile
-    container_name: saborexpress-cliente
     restart: unless-stopped
     ports:
       - "8091:80"
@@ -47,7 +45,6 @@ services:
     build:
       context: ./admin
       dockerfile: Dockerfile
-    container_name: saborexpress-admin
     restart: unless-stopped
     ports:
       - "8092:80"
@@ -60,7 +57,6 @@ services:
     build:
       context: ./entregador
       dockerfile: Dockerfile
-    container_name: saborexpress-entregador
     restart: unless-stopped
     ports:
       - "8093:80"
