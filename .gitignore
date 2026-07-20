@@ -1,12 +1,32 @@
+# Dependências
 node_modules/
+
+# Build
 dist/
+
+# Ambiente
 .env
-*.log
+.env.local
+.env.*.local
+
+# Sistema
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.sublime-workspace
+
+# Projeto
 uploads/*
 !uploads/.gitkeep
 nul
 backend/nul
-package-lock.json
-# Arquivos sensíveis
+
+# Segurança
 chavesAsaas.md
