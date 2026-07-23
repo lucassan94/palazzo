@@ -3,7 +3,7 @@
     <div class="login-page">
       <div class="login-card">
         <div class="icon"><i class="fas fa-motorcycle"></i></div>
-        <h2>Driver App</h2>
+        <h2>🏍️ Driver App</h2>
         <p>Entre com suas credenciais de entregador</p>
         <div v-if="errorMsg" style="background:#fee2e2;color:#991b1b;padding:0.75rem;border-radius:6px;font-size:0.85rem;margin-bottom:1rem;">{{ errorMsg }}</div>
         <form @submit.prevent="login">

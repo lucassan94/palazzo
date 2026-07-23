@@ -2,7 +2,7 @@
   <div v-if="!authStore.isAuthenticated" class="login-page">
     <div class="login-card">
       <div class="logo"><i class="fas fa-utensils"></i></div>
-      <h2>Painel Administrativo</h2>
+      <h2>⚙️ Painel Administrativo</h2>
       <p>Entre com suas credenciais de administrador</p>
 
       <div v-if="errorMsg" style="background:var(--error-light);color:var(--error);padding:0.75rem;border-radius:6px;font-size:0.85rem;margin-bottom:1rem;">
@@ -22,7 +22,7 @@
   <div v-else class="admin-layout">      <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
         <div class="logo"><i class="fas fa-crown"></i></div>
-        <h2>Palazzo</h2>
+        <h2>🏰 Palazzo</h2>
         <button class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed" :title="sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'">
           <i :class="sidebarCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
         </button>

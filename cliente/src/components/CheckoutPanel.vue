@@ -516,8 +516,13 @@ function removeItem(index) {
 }
 
 async function confirmOrder() {
+  // Verificar sessão atualizada ANTES de prosseguir
+  // (evita erro 'Token de acesso não fornecido' quando o token expirou)
+  await authStore.checkSession()
+  
   if (!authStore.isAuthenticated) {
-    addToast('Faça login para finalizar o pedido.', 'warning')
+    addToast('Sua sessão expirou. Faça login novamente.', 'warning')
+    router.push('/auth')
     return
   }
 

@@ -1,15 +1,23 @@
-# Dependências
+# =====================================
+# DEPENDÊNCIAS
+# =====================================
 node_modules/
 
-# Build
+# =====================================
+# BUILD
+# =====================================
 dist/
 
-# Ambiente
+# =====================================
+# AMBIENTE
+# =====================================
 .env
 .env.local
 .env.*.local
 
-# Sistema
+# =====================================
+# SISTEMA
+# =====================================
 .DS_Store
 Thumbs.db
 *.swp
@@ -17,16 +25,48 @@ Thumbs.db
 *.bak
 *.log
 
+# =====================================
 # IDE
+# =====================================
 .vscode/
 .idea/
 *.sublime-workspace
 
-# Projeto
+# =====================================
+# UPLOADS (apenas o .gitkeep)
+# =====================================
 uploads/*
 !uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# =====================================
+# CARDÁPIO (dados de exemplo)
+# =====================================
+Cardápio/
+
+# =====================================
+# IMAGENS NÃO ESSENCIAIS (exceto ícones de PWA)
+# =====================================
+*.png
+*.jpg
+*.jpeg
+!cliente/public/**/*.png
+!cliente/public/**/*.jpg
+!admin/public/**/*.png
+!admin/public/**/*.jpg
+!entregador/public/**/*.png
+!entregador/public/**/*.jpg
+
+# =====================================
+# SEGURANÇA
+# =====================================
+chavesAsaas.md
+portainer.md
+
+# =====================================
+# ARQUIVOS ESPECÍFICOS DO PROJETO
+# =====================================
+problem1.png
 nul
 backend/nul
-
-# Segurança
-chavesAsaas.md
