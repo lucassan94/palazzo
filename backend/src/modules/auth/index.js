@@ -26,14 +26,14 @@ const signupClienteSchema = z.object({
   password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres.'),
 });
 
-// Gerar tokens JWT
+// Gerar tokens JWT — sessão de longa duração (365 dias)
 function gerarTokens(usuario) {
   const payload = {
     id: usuario.id,
     email: usuario.email,
     nome: usuario.nome,
     role: usuario.role,
-    cargo: usuario.cargo || usuario.role, // cargo real (admin/gerente) ou role como fallback
+    cargo: usuario.cargo || usuario.role,
     restaurantId: config.restaurantId,
   };
 
@@ -51,31 +51,37 @@ function gerarTokens(usuario) {
 }
 
 // Definir cookie httpOnly
-function setTokenCookies(res, tokens) {
+function setTokenCookies(req, res, tokens) {
+  // Detecta se a conexão é segura (HTTPS) de forma confiável
+  const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  
+  // 365 dias em ms
+  const UM_ANO = 365 * 24 * 60 * 60 * 1000;
+
   const cookieOptions = {
     httpOnly: true,
-    secure: config.nodeEnv === 'production',
+    secure: isSecure,
     sameSite: 'lax',
     path: '/',
   };
 
   res.cookie('token', tokens.accessToken, {
     ...cookieOptions,
-    maxAge: 15 * 60 * 1000, // 15 min
+    maxAge: UM_ANO,
   });
 
   res.cookie('refreshToken', tokens.refreshToken, {
     ...cookieOptions,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+    maxAge: UM_ANO,
   });
 
-  // Token legível para o frontend (útil para Socket.IO auth)
+  // Token legível para o frontend (útil para Socket.IO auth e interceptor API)
   res.cookie('publicToken', tokens.accessToken, {
     httpOnly: false,
-    secure: config.nodeEnv === 'production',
+    secure: isSecure,
     sameSite: 'lax',
     path: '/',
-    maxAge: 15 * 60 * 1000,
+    maxAge: UM_ANO,
   });
 }
 
@@ -87,7 +93,9 @@ router.post('/cliente/login', loginLimiter, async (req, res, next) => {
     const { email, password } = loginSchema.parse(req.body);
 
     const result = await query(
-      'SELECT id, nome, sobrenome, email, telefone, endereco, cep, cpf_cnpj, senha_hash FROM clientes WHERE email = $1 AND ativo = true',
+      `SELECT id, nome, sobrenome, email, telefone, endereco, numero, bairro, complemento, cidade, estado, cep, cpf_cnpj, senha_hash
+       FROM clientes
+       WHERE email = $1 AND ativo = true`,
       [email]
     );
 
@@ -98,7 +106,7 @@ router.post('/cliente/login', loginLimiter, async (req, res, next) => {
     if (!senhaValida) throw new AppError('E-mail ou senha inválidos.', 401);
 
     const tokens = gerarTokens({ ...user, role: 'cliente' });
-    setTokenCookies(res, tokens);
+    setTokenCookies(req, res, tokens);
 
     res.json({
       message: 'Login realizado com sucesso!',
@@ -108,6 +116,13 @@ router.post('/cliente/login', loginLimiter, async (req, res, next) => {
         sobrenome: user.sobrenome,
         email: user.email,
         telefone: user.telefone,
+        endereco: user.endereco,
+        numero: user.numero,
+        bairro: user.bairro,
+        complemento: user.complemento,
+        cidade: user.cidade,
+        estado: user.estado,
+        cep: user.cep,
         cpf_cnpj: user.cpf_cnpj,
         role: 'cliente',
       },
@@ -144,7 +159,7 @@ router.post('/cliente/signup', signupLimiter, async (req, res, next) => {
     });
 
     const tokens = gerarTokens({ ...result, role: 'cliente' });
-    setTokenCookies(res, tokens);
+    setTokenCookies(req, res, tokens);
 
     res.status(201).json({
       message: 'Conta criada com sucesso!',
@@ -181,7 +196,7 @@ router.post('/entregador/login', loginLimiter, async (req, res, next) => {
     if (!senhaValida) throw new AppError('E-mail ou senha inválidos.', 401);
 
     const tokens = gerarTokens({ ...user, role: 'entregador' });
-    setTokenCookies(res, tokens);
+    setTokenCookies(req, res, tokens);
 
     res.json({
       message: 'Login realizado com sucesso!',
@@ -226,7 +241,7 @@ router.post('/restaurante/login', loginLimiter, async (req, res, next) => {
     await query('UPDATE restaurante_users SET ultimo_acesso = NOW() WHERE id = $1', [user.id]);
 
     const tokens = gerarTokens({ ...user, role: 'restaurante' });
-    setTokenCookies(res, tokens);
+    setTokenCookies(req, res, tokens);
 
     res.json({
       message: 'Login realizado com sucesso!',
@@ -263,7 +278,7 @@ router.post('/refresh', async (req, res, next) => {
     };
 
     const tokens = gerarTokens(user);
-    setTokenCookies(res, tokens);
+    setTokenCookies(req, res, tokens);
 
     res.json({
       message: 'Token renovado.',

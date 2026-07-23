@@ -28,8 +28,8 @@ export const config = {
       }
       return s || 'dev-secret-key-change-in-production';
     })(),
-    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    expiresIn: process.env.JWT_EXPIRES_IN || '365d',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '365d',
   },
 
   // Multi-tenant: Restaurant ID (hardcoded for this instance)

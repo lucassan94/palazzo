@@ -11,6 +11,15 @@
       <div class="spinner" style="margin:0 auto;width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;"></div>
     </div>
 
+    <div v-else-if="erroCarregamento" class="card" style="text-align:center;padding:2rem;">
+      <i class="fas fa-exclamation-triangle" style="font-size:2rem;color:var(--error);margin-bottom:0.75rem;"></i>
+      <p style="color:var(--error);font-weight:600;">{{ erroCarregamento }}</p>
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem;">Verifique sua sessão ou tente recarregar a página.</p>
+      <button class="btn btn-primary btn-sm" style="margin-top:1rem;" @click="load">
+        <i class="fas fa-sync"></i> Tentar novamente
+      </button>
+    </div>
+
     <template v-else-if="dados">
       <!-- KPIs -->
       <div class="stats-grid">
@@ -88,6 +97,7 @@ import api from '../services/api'
 
 const dados = ref(null)
 const loading = ref(true)
+const erroCarregamento = ref('')
 const hoje = new Date().toISOString().split('T')[0]
 const dataInicio = ref(hoje)
 const dataFim = ref('')
@@ -115,12 +125,16 @@ function paymentLabel(m) {
 
 async function load() {
   loading.value = true
+  erroCarregamento.value = ''
   try {
     const { data } = await api.get('/dashboard', {
       params: { data_inicio: dataInicio.value || undefined, data_fim: dataFim.value || undefined }
     })
     dados.value = data
-  } catch { /* ignore */ }
+  } catch (err) {
+    erroCarregamento.value = err.response?.data?.error || 'Erro ao carregar dados do dashboard.'
+    console.error('[Dashboard] Erro ao carregar:', err?.response?.data || err.message)
+  }
   finally { loading.value = false }
 }
 
