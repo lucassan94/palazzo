@@ -1,1 +1,0 @@
-- o botão de recolher sidebar some depois que eu recolho e não consigo expandir mais.
