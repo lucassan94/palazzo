@@ -13,10 +13,11 @@ services:
       - DB_NAME=${DB_NAME:-delivery}
       - DB_USER=${DB_USER:-default}
       - DB_PASS=${DB_PASS:-default}
+      # ATENÇÃO: Configure estas variáveis no ambiente do Portainer ou .env
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - RESTAURANT_ID=${RESTAURANT_ID:-1}
       - CORS_ORIGIN=http://86.48.18.22:8091,http://86.48.18.22:8092,http://86.48.18.22:8093
-      # Asaas Payment Gateway
+      # Asaas Payment Gateway — configure no ambiente, NÃO hardcode aqui
       - ASAAS_API_KEY=${ASAAS_API_KEY}
       - ASAAS_ENV=${ASAAS_ENV:-sandbox}
       - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN}

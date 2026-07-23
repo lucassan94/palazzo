@@ -116,7 +116,7 @@ router.put('/:id', authenticate, authorize('admin', 'gerente'), async (req, res,
 });
 
 // ============================
-// RELATÓRIO DE ENTREGAS
+// RELATÓRIO DE ENTREGAS (tabela geral)
 // ============================
 router.get('/relatorio', authenticate, authorize('admin', 'gerente'), async (req, res, next) => {
   try {
@@ -131,6 +131,87 @@ router.get('/relatorio', authenticate, authorize('admin', 'gerente'), async (req
       [config.restaurantId]
     );
     res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================
+// RELATÓRIO FINANCEIRO — Resumo diário (Admin)
+// ============================
+router.get('/relatorio/financeiro', authenticate, authorize('admin', 'gerente'), async (req, res, next) => {
+  try {
+    // Total de hoje
+    const hoje = await query(
+      `SELECT COALESCE(SUM(p.valor_frete), 0) as total
+       FROM pedidos p
+       WHERE p.restaurant_id = $1 AND p.status = 'entregue' AND p.entregue_em >= CURRENT_DATE`,
+      [config.restaurantId]
+    );
+
+    // Dias do mês
+    const dias = await query(
+      `SELECT
+        DATE(p.entregue_em) as data,
+        COUNT(*) as entregas,
+        COALESCE(SUM(p.valor_frete), 0) as total_frete,
+        COUNT(DISTINCT p.entregador_id) as entregadores_ativos
+       FROM pedidos p
+       WHERE p.restaurant_id = $1
+         AND p.status = 'entregue'
+         AND p.entregue_em >= DATE_TRUNC('month', CURRENT_DATE)
+       GROUP BY DATE(p.entregue_em)
+       ORDER BY data DESC`,
+      [config.restaurantId]
+    );
+
+    // Consolidado do mês
+    const consolidado = await query(
+      `SELECT
+        COALESCE(SUM(valor_frete), 0) as mes,
+        COUNT(*) as entregas_mes
+       FROM pedidos
+       WHERE restaurant_id = $1 AND status = 'entregue' AND entregue_em >= DATE_TRUNC('month', CURRENT_DATE)`,
+      [config.restaurantId]
+    );
+
+    res.json({
+      hoje: hoje.rows[0].total,
+      mes: consolidado.rows[0].mes,
+      entregas_mes: parseInt(consolidado.rows[0].entregas_mes || 0),
+      dias: dias.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================
+// RELATÓRIO FINANCEIRO — Detalhamento de um dia (Admin)
+// ============================
+router.get('/relatorio/financeiro/dia/:data', authenticate, authorize('admin', 'gerente'), async (req, res, next) => {
+  try {
+    const { data } = req.params;
+
+    const result = await query(
+      `SELECT p.id, p.pedido_id, p.nome_cliente, p.valor_frete, p.total, p.metodo_pagamento,
+              p.entregue_em, p.criado_em, p.endereco_cliente, p.numero_cliente, p.bairro_cliente,
+              e.nome as entregador_nome
+       FROM pedidos p
+       LEFT JOIN entregadores e ON e.id = p.entregador_id
+       WHERE p.restaurant_id = $1
+         AND p.status = 'entregue'
+         AND DATE(p.entregue_em) = $2
+       ORDER BY p.entregue_em DESC`,
+      [config.restaurantId, data]
+    );
+
+    res.json({
+      data,
+      total_frete: result.rows.reduce((acc, r) => acc + parseFloat(r.valor_frete || 0), 0),
+      entregas: result.rows.length,
+      itens: result.rows,
+    });
   } catch (err) {
     next(err);
   }
@@ -163,6 +244,89 @@ router.get('/me', authenticate, async (req, res, next) => {
     );
 
     res.json({ ...result.rows[0], financeiro: extrato.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================
+// EXTRATO FINANCEIRO — Resumo diário do mês
+// ============================
+router.get('/me/financeiro', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.user;
+
+    // Total de hoje
+    const hoje = await query(
+      `SELECT COALESCE(SUM(valor_frete), 0) as total
+       FROM pedidos
+       WHERE entregador_id = $1 AND status = 'entregue' AND entregue_em >= CURRENT_DATE`,
+      [id]
+    );
+
+    // Todos os dias do mês atual com entregas
+    const dias = await query(
+      `SELECT
+        DATE(entregue_em) as data,
+        COUNT(*) as entregas,
+        COALESCE(SUM(valor_frete), 0) as total_frete
+       FROM pedidos
+       WHERE entregador_id = $1
+         AND status = 'entregue'
+         AND entregue_em >= DATE_TRUNC('month', CURRENT_DATE)
+       GROUP BY DATE(entregue_em)
+       ORDER BY data DESC`,
+      [id]
+    );
+
+    // Totais consolidados (semana e mês)
+    const consolidado = await query(
+      `SELECT
+        COALESCE(SUM(valor_frete) FILTER (WHERE entregue_em >= DATE_TRUNC('week', CURRENT_DATE)), 0) as semana,
+        COALESCE(SUM(valor_frete), 0) as mes,
+        COUNT(*) FILTER (WHERE entregue_em >= DATE_TRUNC('month', CURRENT_DATE)) as entregas_mes
+       FROM pedidos
+       WHERE entregador_id = $1 AND status = 'entregue' AND entregue_em >= DATE_TRUNC('month', CURRENT_DATE)`,
+      [id]
+    );
+
+    res.json({
+      hoje: hoje.rows[0].total,
+      semana: consolidado.rows[0].semana,
+      mes: consolidado.rows[0].mes,
+      entregas_mes: parseInt(consolidado.rows[0].entregas_mes || 0),
+      dias: dias.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================
+// EXTRATO — Detalhamento de um dia específico
+// ============================
+router.get('/me/financeiro/dia/:data', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.user;
+    const { data } = req.params;
+
+    const result = await query(
+      `SELECT p.id, p.pedido_id, p.nome_cliente, p.valor_frete, p.total, p.metodo_pagamento,
+              p.entregue_em, p.criado_em, p.endereco_cliente, p.numero_cliente, p.bairro_cliente
+       FROM pedidos p
+       WHERE p.entregador_id = $1
+         AND p.status = 'entregue'
+         AND DATE(p.entregue_em) = $2
+       ORDER BY p.entregue_em DESC`,
+      [id, data]
+    );
+
+    res.json({
+      data,
+      total_frete: result.rows.reduce((acc, r) => acc + parseFloat(r.valor_frete || 0), 0),
+      entregas: result.rows.length,
+      itens: result.rows,
+    });
   } catch (err) {
     next(err);
   }

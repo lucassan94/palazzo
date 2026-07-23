@@ -58,21 +58,6 @@
             <button v-if="pixExpired" class="btn btn-secondary btn-block mt-1" @click="gerarNovoPix">
               <i class="fas fa-redo"></i> Gerar novo QR Code
             </button>
-            <!-- ⚠️ Botão TEMPORÁRIO — apenas para desenvolvimento -->
-            <button
-              class="btn btn-warning btn-block mt-1"
-              :disabled="simulandoPagamento"
-              @click="simularPagamento"
-              title="⚠️ Apenas para desenvolvimento. Remover em produção!"
-            >
-              <i v-if="simulandoPagamento" class="fas fa-spinner fa-spin"></i>
-              <i v-else class="fas fa-magic"></i>
-              {{ simulandoPagamento ? 'Simulando...' : '🔹 Pagar (dev)' }}
-            </button>
-            <div v-if="verificandoStatus" class="dev-info-badge">
-              <i class="fas fa-spinner fa-spin"></i> Verificando pagamento...
-            </div>
-            <div v-if="pagamentoOk" class="dev-success-badge">✅ Pagamento confirmado! Redirecionando...</div>
           </div>
         </div>
       </div>
@@ -188,9 +173,6 @@ const elapsedTime = ref(0)
 const pixData = ref(null)
 const pixTimer = ref('10:00')
 const pixExpired = ref(false)
-const simulandoPagamento = ref(false)
-const pagamentoOk = ref(false)
-const verificandoStatus = ref(false)
 let timerInterval = null
 let pixInterval = null
 let pollingInterval = null
@@ -322,7 +304,7 @@ onMounted(async () => {
     loading.value = false
   }
 
-  // Real-time updates
+  // Real-time updates (mecanismo PRINCIPAL)
   onEvent('pedido:atualizado', (pedido) => {
     if (pedido.id === parseInt(id)) {
       order.value = { ...order.value, ...pedido }
@@ -335,8 +317,8 @@ onMounted(async () => {
   // Carregar dados do PIX se for pix_online
   if (order.value?.metodo_pagamento === 'pix_online' && order.value?.status === 'aguardando_pagamento') {
     carregarPixData(id)
-    // Iniciar polling automático: verifica status a cada 5s
-    iniciarPollingStatus(id)
+    // Backup polling: verifica status LOCAL a cada 10s (não consulta Asaas)
+    iniciarPollingLocal(id)
   }
 
   // Iniciar polling de refund se pedido foi recusado/cancelado com pagamento online
@@ -349,25 +331,23 @@ onMounted(async () => {
   }
 })
 
-// Polling automático: consulta status real no Asaas a cada 5 segundos
-function iniciarPollingStatus(pedidoId) {
+// Polling de BACKUP: verifica status do pedido LOCAL (não consulta Asaas)
+// Mecanismo principal é o WebSocket (pedido:atualizado)
+// Este polling serve apenas como fallback para quando o WebSocket falha
+function iniciarPollingLocal(pedidoId) {
   pollingInterval = setInterval(async () => {
-    if (verificandoStatus.value || pagamentoOk.value) return
-    verificandoStatus.value = true
     try {
-      const { data } = await api.get(`/pagamentos/${pedidoId}/verificar-status`)
-      if (data.precisa_atualizar) {
-        // Pagamento foi confirmado! Buscar dados atualizados do pedido
-        pagamentoOk.value = true
-        // Recarregar após 2s para mostrar o badge de sucesso
-        setTimeout(() => window.location.reload(), 2000)
+      const { data } = await api.get(`/pedidos/${pedidoId}`)
+      // Se o status mudou de 'aguardando_pagamento', o webhook chegou
+      if (data.status !== 'aguardando_pagamento') {
+        order.value = data
+        // Recarregar após 1s para sincronizar tudo
+        setTimeout(() => window.location.reload(), 1000)
       }
     } catch {
       // Silent — polling não deve mostrar erros
-    } finally {
-      verificandoStatus.value = false
     }
-  }, 3000)
+  }, 15000) // 15s: intervalo tranquilo, só backup
 }
 
 // PIX: carregar dados (localStorage ou API)
@@ -410,25 +390,6 @@ function iniciarTimerPix() {
   }, 1000)
 }
 
-// ⚠️ TEMPORÁRIO — Simular pagamento (dev apenas)
-async function simularPagamento() {
-  if (simulandoPagamento.value) return
-  simulandoPagamento.value = true
-  try {
-    const pedidoId = route.params.id
-    await api.post(`/pagamentos/${pedidoId}/simular-pagamento`)
-    pagamentoOk.value = true
-    // Recarregar dados do pedido após 1.5s
-    setTimeout(() => {
-      window.location.reload()
-    }, 1500)
-  } catch (err) {
-    console.error('[Tracking] Erro ao simular pagamento:', err)
-    simulandoPagamento.value = false
-    alert('Erro ao simular pagamento: ' + (err.response?.data?.erro || err.message))
-  }
-}
-
 function copiarPixPayload() {
   if (!pixData.value?.payload) return
   navigator.clipboard.writeText(pixData.value.payload)
@@ -463,32 +424,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.dev-info-badge {
-  background: #dbeafe;
-  color: #1e40af;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  text-align: center;
-  margin-top: 6px;
-  animation: tracking-pulse 1.5s ease-in-out infinite;
-}
-.dev-success-badge {
-  background: #dcfce7;
-  color: #166534;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-align: center;
-  margin-top: 6px;
-}
-@keyframes tracking-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
 /* Refund badge no cliente */
 .refund-badge {
   font-size: 0.85rem;
