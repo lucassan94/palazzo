@@ -15,7 +15,7 @@ services:
       - DB_PASS=${DB_PASS:-default}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - RESTAURANT_ID=${RESTAURANT_ID:-1}
-      - CORS_ORIGIN=https://cliente.saborexpress.com,https://admin.saborexpress.com,https://entregador.saborexpress.com
+      - CORS_ORIGIN=http://86.48.18.22:8091,http://86.48.18.22:8092,http://86.48.18.22:8093
     volumes:
       - backend_uploads:/app/uploads
     healthcheck:

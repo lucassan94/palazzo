@@ -8,7 +8,6 @@ RUN npm run build
 
 # Production stage
 FROM nginx:alpine
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Nginx config for SPA
 COPY nginx.conf /etc/nginx/nginx.conf
@@ -16,12 +15,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Non-root
-RUN chown -R appuser:appgroup /usr/share/nginx /var/cache/nginx /var/run && \
-    chmod -R 755 /usr/share/nginx && \
-    sed -i 's/user  nginx;/user appuser;/g' /etc/nginx/nginx.conf
-
-USER appuser
+RUN chmod -R 755 /usr/share/nginx
 
 EXPOSE 80
 

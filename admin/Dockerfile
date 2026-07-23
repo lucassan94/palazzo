@@ -6,12 +6,10 @@ COPY . .
 RUN npm run build
 
 FROM nginx:alpine
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
-RUN chown -R appuser:appgroup /usr/share/nginx /var/cache/nginx /var/run && \
-    chmod -R 755 /usr/share/nginx
 
-USER appuser
+RUN chmod -R 755 /usr/share/nginx
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
