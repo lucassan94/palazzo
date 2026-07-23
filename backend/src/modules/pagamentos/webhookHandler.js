@@ -4,25 +4,27 @@ import { emitPedidoAtualizado, emitNovoPedido } from '../../services/realtime.js
 
 // ──────── HELPERS ────────
 
+// Mapeamento explícito de colunas permitidas para atualização de pagamentos
+// 🔒 PROTEGIDO contra SQL injection: nomes de colunas são hardcoded
+const COLUNAS_PAGAMENTO = {
+  pago_em: 'pago_em',
+  valor_liquido: 'valor_liquido',
+  taxa: 'taxa',
+};
+
 async function atualizarPagamento(conn, paymentId, status, extras = {}) {
-  const sets = ['status = $1', 'atualizado_em = NOW()'];
   const params = [status, paymentId];
   let idx = 3;
+  const sets = ['status = $1', 'atualizado_em = NOW()'];
 
-  if (extras.pago_em) {
-    sets.push(`pago_em = $${idx++}`);
-    params.push(extras.pago_em);
-  }
-  if (extras.valor_liquido !== undefined) {
-    sets.push(`valor_liquido = $${idx++}`);
-    params.push(extras.valor_liquido);
-  }
-  if (extras.taxa !== undefined) {
-    sets.push(`taxa = $${idx++}`);
-    params.push(extras.taxa);
+  for (const [coluna, chave] of Object.entries(COLUNAS_PAGAMENTO)) {
+    if (extras[chave] !== undefined && extras[chave] !== null) {
+      sets.push(`${coluna} = $${idx++}`);
+      params.push(extras[chave]);
+    }
   }
 
-  await conn.query(
+  return conn.query(
     `UPDATE pagamentos SET ${sets.join(', ')} WHERE payment_id = $2`,
     params
   );

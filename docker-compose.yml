@@ -16,6 +16,12 @@ services:
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - RESTAURANT_ID=${RESTAURANT_ID:-1}
       - CORS_ORIGIN=http://86.48.18.22:8091,http://86.48.18.22:8092,http://86.48.18.22:8093
+      # Asaas Payment Gateway
+      - ASAAS_API_KEY=${ASAAS_API_KEY}
+      - ASAAS_ENV=${ASAAS_ENV:-sandbox}
+      - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN}
+      - ASAAS_WEBHOOK_SECRET=${ASAAS_WEBHOOK_SECRET}
+      - ASAAS_PIX_EXPIRY=${ASAAS_PIX_EXPIRY:-30}
     volumes:
       - backend_uploads:/app/uploads
     healthcheck:

@@ -10,14 +10,86 @@ import { processarEvento } from './webhookHandler.js';
 
 const router = Router();
 
-// Validação do token do webhook Asaas
-function validateWebhook(req, res, next) {
+// ──────── WEBHOOK VALIDATION ────────
+
+// IPs autorizados do Asaas (production)
+// Fonte: https://docs.asaas.com/docs/configurando-webhook
+const ASAAS_IPS = [
+  '52.67.14.79',
+  '54.94.24.63',
+  '54.232.119.116',
+  '177.71.245.124',
+  '177.71.245.125',
+  '177.71.245.126',
+  '177.71.245.127',
+];
+
+function validateWebhookSignature(req, res, next) {
+  // 1. Verificar IP (produção)
+  const clientIp = req.ip || req.connection?.remoteAddress;
+  if (config.asaas.environment === 'production' && clientIp) {
+    const ipLimpo = clientIp.replace(/^::ffff:/, '');
+    if (!ASAAS_IPS.includes(ipLimpo)) {
+      console.warn(`[Asaas] Webhook rejeitado: IP ${ipLimpo} não autorizado`);
+      return res.status(200).json({ received: true }); // 200 para não gerar retentativas
+    }
+  }
+
+  // 2. Verificar token (obrigatório em todos os ambientes)
   const token = req.headers['asaas-access-token'];
   if (!token || token !== config.asaas.webhookToken) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    console.warn('[Asaas] Webhook rejeitado: token inválido');
+    return res.status(200).json({ received: true });
   }
+
+  // 3. Verificar HMAC-SHA256 (se webhookSecret estiver configurado)
+  if (config.asaas.webhookSecret) {
+    const signature = req.headers['asaas-signature'];
+    const rawBody = req.rawBody || JSON.stringify(req.body);
+    if (!asaas.verificarAssinaturaWebhook(rawBody, signature, config.asaas.webhookSecret)) {
+      console.warn('[Asaas] Webhook rejeitado: assinatura HMAC inválida');
+      return res.status(200).json({ received: true });
+    }
+  }
+
   next();
 }
+
+// ──────── POST /api/pagamentos/tokenizar-cartao ────────
+// Tokeniza cartão com Asaas (Checkout Transparente)
+// O frontend chama este endpoint em vez de enviar dados brutos do cartão
+router.post('/tokenizar-cartao', authenticate, async (req, res, next) => {
+  try {
+    const schema = z.object({
+      holderName: z.string().min(1),
+      number: z.string().min(13).max(19),
+      expiryMonth: z.string().min(1).max(2),
+      expiryYear: z.string().min(2).max(4),
+      ccv: z.string().min(3).max(4),
+    });
+
+    const cardData = schema.parse(req.body);
+
+    // Tokenizar com Asaas (dados NUNCA são armazenados no nosso BD)
+    const result = await asaas.tokenizeCard(cardData);
+
+    // Retorna APENAS o token — dados do cartão são descartados
+    res.json({
+      sucesso: true,
+      creditCardToken: result.creditCardToken || result.id,
+    });
+
+  } catch (err) {
+    if (err.name === 'ZodError') {
+      return res.status(400).json({
+        sucesso: false,
+        erro: 'Dados do cartão inválidos.',
+        detalhes: err.errors,
+      });
+    }
+    next(err);
+  }
+});
 
 // ──────── POST /api/pagamentos/criar ────────
 // Cria pagamento online (PIX ou Cartão) + pedido
@@ -25,7 +97,7 @@ router.post('/criar', authenticate, async (req, res, next) => {
   try {
     const { id: clienteId, email, nome } = req.user;
 
-    // Validar body
+    // Validar body — creditCardToken substitui creditCard (dados brutos)
     const schema = z.object({
       tipo: z.enum(['PIX', 'CREDIT_CARD']),
       cliente: z.object({
@@ -55,7 +127,9 @@ router.post('/criar', authenticate, async (req, res, next) => {
         })).optional().default([]),
         subtotal: z.number().positive(),
       })).min(1),
-      // Cartão de crédito
+      // 🔒 PCI COMPLIANT: creditCardToken é preferido (cartão tokenizado via Asaas)
+      creditCardToken: z.string().optional(),
+      // ⚠️ DEPRECATED: creditCard será removido em versão futura
       creditCard: z.object({
         holderName: z.string(),
         number: z.string(),
@@ -207,29 +281,43 @@ router.post('/criar', authenticate, async (req, res, next) => {
 
     } else {
       // CREDIT_CARD
-      if (!data.creditCard || !data.creditCardHolderInfo) {
-        throw new AppError('Dados do cartão são obrigatórios.', 400);
-      }
-
-      const payment = await asaas.createPayment({
+      // 🔒 PCI: Preferir creditCardToken (tokenizado via Asaas) sobre dados brutos
+      const usarToken = !!data.creditCardToken;
+      const paymentBody = {
         customer: customer.id,
         billingType: 'CREDIT_CARD',
         value: data.total,
         dueDate: dueDateStr,
         description: `Pedido #${result.pedido_id || result.id} - SaborExpress`,
         externalReference: result.id,
-        creditCard: data.creditCard,
-        creditCardHolderInfo: data.creditCardHolderInfo,
         remoteIp: data.remoteIp || req.ip,
-      }, idempotencyKey);
+      };
 
-      // Salvar dados do pagamento no BD (pago_em separadamente para evitar type mismatch no $5)
+      if (usarToken) {
+        // ✅ PCI Compliant: usa cartão tokenizado — dados sensíveis nunca chegam ao servidor
+        paymentBody.creditCardToken = data.creditCardToken;
+        paymentBody.creditCardHolderInfo = data.creditCardHolderInfo;
+      } else {
+        // ⚠️ Fallback legado: dados brutos do cartão (será removido)
+        if (!data.creditCard) {
+          throw new AppError(
+            'Informe creditCardToken (recomendado) ou creditCard (legado).',
+            400
+          );
+        }
+        paymentBody.creditCard = data.creditCard;
+        paymentBody.creditCardHolderInfo = data.creditCardHolderInfo;
+      }
+
+      const payment = await asaas.createPayment(paymentBody, idempotencyKey);
+
+      // Salvar dados do pagamento no BD
       await query(
         `INSERT INTO pagamentos (pedido_id, customer_id, payment_id, billing_type, status,
           valor_bruto, invoice_url, credit_card_token, data_vencimento, pago_em)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [result.id, customer.id, payment.id, 'CREDIT_CARD', payment.status,
-         data.total, payment.invoiceUrl || null, payment.creditCardToken || null, dueDateStr,
+         data.total, payment.invoiceUrl || null, payment.creditCardToken || data.creditCardToken || null, dueDateStr,
          (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') ? new Date() : null]
       );
 
@@ -244,13 +332,14 @@ router.post('/criar', authenticate, async (req, res, next) => {
 
       res.status(201).json({
         sucesso: true,
-        id: result.id,  // INTEGER PK
+        id: result.id,
         pedido_id: result.pedido_id || result.id,
         payment_id: payment.id,
         status: payment.status === 'CONFIRMED' || payment.status === 'RECEIVED' ? 'pendente' : 'aguardando_pagamento',
         cartao: {
           aprovado: payment.status === 'CONFIRMED' || payment.status === 'RECEIVED',
           creditCardToken: payment.creditCardToken || null,
+          tokenizado: usarToken,
         },
       });
     }
@@ -270,7 +359,7 @@ router.post('/criar', authenticate, async (req, res, next) => {
 
 // ──────── POST /api/pagamentos/webhook ────────
 // Recebe notificações do Asaas
-router.post('/webhook', validateWebhook, async (req, res) => {
+router.post('/webhook', validateWebhookSignature, async (req, res) => {
   try {
     const { id: eventId, event, payment } = req.body;
 
@@ -290,7 +379,7 @@ router.post('/webhook', validateWebhook, async (req, res) => {
 
     // Persistir evento (UNIQUE constraint protege contra race conditions)
     await query(
-      'INSERT INTO webhook_events (event_id, event_type, payment_id) VALUES ($1, $2, $3)',
+      'INSERT INTO webhook_events (event_id, event_type, payment_id) VALUES ($1, $2, $3) ON CONFLICT (event_id) DO NOTHING',
       [eventId, event, payment.id]
     );
 
@@ -313,6 +402,12 @@ router.post('/webhook', validateWebhook, async (req, res) => {
     console.error('[Asaas] Webhook error:', err);
     res.status(200).json({ received: true });
   }
+});
+
+// ──────── POST /api/pagamentos/webhook-health ────────
+// Endpoint para o Asaas verificar se o webhook está respondendo
+router.get('/webhook-health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // ──────── GET /api/pagamentos/:pedidoId/pix-qrcode ────────
@@ -339,49 +434,6 @@ router.get('/:pedidoId/pix-qrcode', authenticate, async (req, res, next) => {
       expirationDate: pagamento.data_vencimento,
       status: pagamento.status,
     });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ──────── POST /api/pagamentos/:pedidoId/simular-pagamento ────────
-// ⚠️ TEMPORÁRIO — Apenas para dev/sandbox. Remove em produção!
-// Simula o webhook PAYMENT_RECEIVED para um pedido PIX
-router.post('/:pedidoId/simular-pagamento', authenticate, async (req, res, next) => {
-  try {
-    const { pedidoId } = req.params;
-
-    // Buscar pagamento PIX do pedido
-    const result = await query(
-      `SELECT * FROM pagamentos WHERE pedido_id = $1 AND billing_type = 'PIX' ORDER BY criado_em DESC LIMIT 1`,
-      [pedidoId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ sucesso: false, erro: 'Pagamento PIX não encontrado para este pedido.' });
-    }
-
-    const pagamento = result.rows[0];
-
-    if (pagamento.status !== 'PENDING') {
-      return res.status(400).json({ sucesso: false, erro: `Pagamento já está como ${pagamento.status}.` });
-    }
-
-    // Simular PAYMENT_RECEIVED igual ao webhook
-    const paymentFake = {
-      id: pagamento.payment_id,
-      status: 'RECEIVED',
-      value: parseFloat(pagamento.valor_bruto),
-      netValue: parseFloat(pagamento.valor_bruto) * 0.97,
-      externalReference: String(pagamento.pedido_id),
-      fee: parseFloat(pagamento.valor_bruto) * 0.03,
-      paymentDate: new Date().toISOString(),
-    };
-
-    await processarEvento('PAYMENT_RECEIVED', paymentFake);
-
-    res.json({ sucesso: true, mensagem: 'Pagamento simulado com sucesso!' });
-
   } catch (err) {
     next(err);
   }

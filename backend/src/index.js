@@ -25,6 +25,14 @@ const app = express();
 const server = http.createServer(app);
 
 // ============================
+// TRUST PROXY (para IP real atrás do nginx)
+// Necessário para:
+//   - IP allowlist do webhook Asaas
+//   - Logs corretos de IP do cliente
+// ============================
+app.set('trust proxy', 1);
+
+// ============================
 // SECURITY MIDDLEWARE
 // ============================
 app.use(helmet({
@@ -57,7 +65,15 @@ app.use(cors({
 }));
 
 app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
+
+// RAW BODY CAPTURE (via verify callback — NÃO consome o stream)
+// Necessário para verificação HMAC dos webhooks do Asaas
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    req.rawBody = buf.toString();
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // ============================

@@ -52,7 +52,11 @@ export const config = {
       ? 'https://api.asaas.com'
       : 'https://api-sandbox.asaas.com',
     webhookToken: process.env.ASAAS_WEBHOOK_TOKEN,
-    pixExpiryMinutes: 10,
-    requestTimeout: 60000,
+    // HMAC secret para verificar assinatura dos webhooks
+    // Gere com: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+    webhookSecret: process.env.ASAAS_WEBHOOK_SECRET || '',
+    // Tempo de expiração do QR Code PIX em minutos (padrão Asaas: 30-60min)
+    pixExpiryMinutes: parseInt(process.env.ASAAS_PIX_EXPIRY || '30', 10),
+    requestTimeout: parseInt(process.env.ASAAS_REQUEST_TIMEOUT || '30000', 10),
   },
 };
