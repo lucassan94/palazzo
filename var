@@ -1,0 +1,13 @@
+┌───────────────┬─────────────────────────────────────────────────────────────────────────┬─────────────────────┐
+│ Variável      │ Valor                                                                   │ Obrigatória?        │
+├───────────────┼─────────────────────────────────────────────────────────────────────────┼─────────────────────┤
+│ DB_USER       │ (usuário do PostgreSQL)                                                 │ Sim 🔴              │
+│ DB_PASS       │ (senha do PostgreSQL)                                                   │ Sim 🔴              │
+│ JWT_SECRET    │ (qualquer string segura, ex: minha-chave-super-secreta-123)             │ Sim 🔴              │
+│ CORS_ORIGIN   │ http://86.48.18.22:8091,http://86.48.18.22:8092,http://86.48.18.22:8093 │ ⚠️ Atualize!        │
+│ DB_HOST       │ 86.48.18.22                                                             │ 🟡 (já é o default) │
+│ DB_PORT       │ 5432                                                                    │ 🟡 (já é o default) │
+│ DB_NAME       │ delivery                                                                │ 🟡 (já é o default) │
+│ ASAAS_API_KEY │ (sua chave Asaas)                                                       │ 🔵 opcional         │
+│ ASAAS_ENV     │ sandbox ou production                                                   │ 🔵 opcional         │
+└───────────────┴─────────────────────────────────────────────────────────────────────────┴──────────────────
